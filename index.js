@@ -1,3 +1,4 @@
+
 const {
   Client,
   GatewayIntentBits,
@@ -6,20 +7,18 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  Events
+  Events,
+  StringSelectMenuBuilder
 } = require("discord.js");
 
 const express = require("express");
+const fs = require("fs-extra");
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.get("/", (req, res) => {
-  res.send("Bot online 🚀");
-});
-
-app.listen(PORT, () => {
-  console.log("Servidor rodando na porta " + PORT);
-});
+app.get("/", (req, res) => res.send("Bot online 🚀"));
+app.listen(PORT);
 
 const client = new Client({
   intents: [
@@ -34,22 +33,36 @@ client.once("ready", () => {
   console.log(`Bot logado como ${client.user.tag}`);
 });
 
-// ==================== PAINEL TICKET ====================
+// ================= PAINEL ADMIN =================
 
 client.on("messageCreate", async (message) => {
-  if (message.content === "!ticket") {
 
-    const botao = new ButtonBuilder()
-      .setCustomId("criar_ticket")
-      .setLabel("🎟️ Criar Ticket")
-      .setStyle(ButtonStyle.Primary);
+  if (!message.member.permissions.has("Administrator")) return;
 
-    const row = new ActionRowBuilder().addComponents(botao);
+  if (message.content === "!painelticket") {
 
-    message.channel.send({
-      content: "🎫 Sistema de Suporte\nClique para abrir um ticket.",
+    const menu = new StringSelectMenuBuilder()
+      .setCustomId("select_ticket")
+      .setPlaceholder("Selecione o tipo de atendimento")
+      .addOptions([
+        { label: "Compra", value: "compra", emoji: "🛒" },
+        { label: "Suporte", value: "suporte", emoji: "🎫" },
+        { label: "Parceria", value: "parceria", emoji: "🤝" }
+      ]);
+
+    const row = new ActionRowBuilder().addComponents(menu);
+
+    const painel = await message.channel.send({
+      embeds: [{
+        title: "🎟️ Central de Atendimento",
+        description: "Escolha abaixo o tipo de atendimento que deseja.",
+        color: 0x2b2d31
+      }],
       components: [row]
     });
+
+    await painel.pin();
+    message.delete();
   }
 
   if (message.content === "!loja") {
@@ -66,24 +79,26 @@ client.on("messageCreate", async (message) => {
       components: [row]
     });
   }
+
 });
 
-// ==================== INTERAÇÕES ====================
+// ================= INTERAÇÕES =================
 
 client.on(Events.InteractionCreate, async (interaction) => {
-  if (!interaction.isButton()) return;
 
   // ===== CRIAR TICKET =====
-  if (interaction.customId === "criar_ticket") {
+  if (interaction.isStringSelectMenu() && interaction.customId === "select_ticket") {
 
     await interaction.deferReply({ ephemeral: true });
 
     const categoria = interaction.guild.channels.cache.find(
-      c => c.name === "TICKETS" && c.type === ChannelType.GuildCategory
+      c => c.name === "⎯TICKET SUPPORT" && c.type === ChannelType.GuildCategory
     );
 
+    const tipo = interaction.values[0];
+
     const canal = await interaction.guild.channels.create({
-      name: `ticket-${interaction.user.username}`,
+      name: `${tipo}-${interaction.user.username}`,
       type: ChannelType.GuildText,
       parent: categoria?.id,
       permissionOverwrites: [
@@ -109,31 +124,59 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const row = new ActionRowBuilder().addComponents(fechar);
 
     await canal.send({
-      content: `Olá ${interaction.user} 👋\nDescreva seu problema.`,
+      content: `Olá ${interaction.user} 👋\nExplique seu pedido.`,
       components: [row]
     });
 
     const logs = interaction.guild.channels.cache.find(c => c.name === "logs-tickets");
-    if (logs) logs.send(`🎟️ Ticket criado por ${interaction.user}`);
+    if (logs) logs.send(`🎟️ Ticket criado (${tipo}) por ${interaction.user}`);
 
     await interaction.editReply({ content: `✅ Ticket criado: ${canal}` });
   }
 
   // ===== FECHAR TICKET =====
-  if (interaction.customId === "fechar_ticket") {
+  if (interaction.isButton() && interaction.customId === "fechar_ticket") {
+
+    await interaction.deferReply({ ephemeral: true });
+
+    const mensagens = await interaction.channel.messages.fetch({ limit: 100 });
+    const transcript = mensagens
+      .reverse()
+      .map(m => `<p><strong>${m.author.tag}:</strong> ${m.content}</p>`)
+      .join("");
+
+    const html = `
+      <html>
+      <head><meta charset="UTF-8"><title>Transcript</title></head>
+      <body>
+      <h2>Transcript do Ticket</h2>
+      ${transcript}
+      </body>
+      </html>
+    `;
+
+    const caminho = `./transcript-${interaction.channel.id}.html`;
+    await fs.writeFile(caminho, html);
 
     const logs = interaction.guild.channels.cache.find(c => c.name === "logs-tickets");
-    if (logs) logs.send(`❌ Ticket fechado por ${interaction.user}`);
 
-    await interaction.reply({ content: "🔒 Fechando ticket...", ephemeral: true });
+    if (logs) {
+      await logs.send({
+        content: `🧾 Transcript do ticket ${interaction.channel.name}`,
+        files: [caminho]
+      });
+    }
 
-    setTimeout(() => {
-      interaction.channel.delete();
+    await interaction.editReply({ content: "🔒 Ticket fechado." });
+
+    setTimeout(async () => {
+      await interaction.channel.delete();
+      await fs.remove(caminho);
     }, 3000);
   }
 
-  // ===== COMPRAR VIP =====
-  if (interaction.customId === "comprar_vip") {
+  // ===== LOJA VIP =====
+  if (interaction.isButton() && interaction.customId === "comprar_vip") {
 
     await interaction.deferReply({ ephemeral: true });
 
@@ -154,6 +197,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       content: "✅ Compra aprovada! Você recebeu o cargo VIP."
     });
   }
+
 });
 
 client.login(process.env.DISCORD_TOKEN);
