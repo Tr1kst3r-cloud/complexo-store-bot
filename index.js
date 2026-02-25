@@ -74,10 +74,20 @@ client.once('ready', () => {
 
   const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
 
-  await rest.put(
-    Routes.applicationCommands(client.user.id),
-    { body: commands }
-  );
+  client.once("ready", async () => {
+  try {
+    console.log("Registrando comandos...");
+
+    await rest.put(
+      Routes.applicationCommands(clientId),
+      { body: commands }
+    );
+
+    console.log("Comandos registrados!");
+  } catch (error) {
+    console.error(error);
+  }
+});
 
   console.log("Slash commands registrados.");
 });
