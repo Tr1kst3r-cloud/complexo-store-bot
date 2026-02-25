@@ -55,22 +55,30 @@ client.once('ready', () => {
 });
 
   const commands = [
-    new SlashCommandBuilder()
-      .setName("ping")
-      .setDescription("Verifica se o bot está online"),
+  new SlashCommandBuilder()
+    .setName("ping")
+    .setDescription("Verifica se o bot está online"),
+
+  new SlashCommandBuilder()
+    .setName("painelticket")
+    .setDescription("Cria painel de ticket"),
+
+  new SlashCommandBuilder()
+    .setName("painelvendas")
+    .setDescription("Cria painel da loja"),
+
+  new SlashCommandBuilder()
+    .setName("estoque")
+    .setDescription("Ver estoque (Admin)"),
+
+  new SlashCommandBuilder()
+    .setName("pedido")
+    .setDescription("Abrir revisão do pedido")
+].map(cmd => cmd.toJSON());
 
     new SlashCommandBuilder()
-      .setName("painelticket")
-      .setDescription("Cria painel de ticket"),
-
-    new SlashCommandBuilder()
-      .setName("painelvendas")
-      .setDescription("Cria painel da loja"),
-
-    new SlashCommandBuilder()
-      .setName("estoque")
-      .setDescription("Ver estoque (Admin)")
-  ].map(cmd => cmd.toJSON());
+  .setName("pedido")
+  .setDescription("Abrir revisão do pedido"),
 
   const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
 
@@ -101,6 +109,42 @@ client.on(Events.InteractionCreate, async (interaction) => {
   /* ===== SLASH COMMANDS ===== */
 
   if (interaction.isChatInputCommand()) {
+  if (interaction.commandName === "pedido") {
+
+  const embed = {
+    title: "Revisão do Pedido",
+    description:
+`Produtos por apenas **R$5,00**
+
+• Encontre aqui diversos produtos disponíveis.
+
+💰 Valor à vista: R$1,00
+📦 Em estoque: 1966`,
+    color: 0xff0000
+  };
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("pagar")
+      .setLabel("Ir para o Pagamento")
+      .setStyle(ButtonStyle.Success),
+
+    new ButtonBuilder()
+      .setCustomId("editar")
+      .setLabel("Editar Quantidade")
+      .setStyle(ButtonStyle.Primary),
+
+    new ButtonBuilder()
+      .setCustomId("cancelar")
+      .setLabel("Cancelar")
+      .setStyle(ButtonStyle.Danger)
+  );
+
+  return interaction.reply({
+    embeds: [embed],
+    components: [row]
+  });
+  }  
 
     if (interaction.commandName === "ping")
       return interaction.reply("🏓 Pong! Bot online.");
